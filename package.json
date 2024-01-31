@@ -1,0 +1,15 @@
+{
+  "name": "com.saaskunstudios.localconection",
+  "version": "1.0.0",
+  "displayName": "Local Conections",
+  "description": "Mandar datos por red local",
+  "unity": "2021.4",
+  "author": {
+    "name": "SaaskunStudios",
+    "email": "saaskunstudios@gmail.com",
+    "url": "https://www.saaskunstudios.com"
+  },
+  "dependencies": {
+    "com.saaskunstudios.threaddispatcher": "1.0.0"
+  }
+}
