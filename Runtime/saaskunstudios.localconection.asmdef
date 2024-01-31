@@ -1,0 +1,16 @@
+{
+    "name": "saaskunstudios.localconection.Runtime",
+    "rootNamespace": "",
+    "references": [
+        "GUID:2e9d67c16ec706747b13fbd86916b8d6"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
