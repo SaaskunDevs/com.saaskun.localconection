@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Collections.Generic;
 using UnityEngine;
+using System.Collections;
 
 namespace Saaskun
 {
@@ -17,13 +18,33 @@ namespace Saaskun
         private List<IPEndPoint> discoveredEndpoints = new List<IPEndPoint>();
         private List<TcpClient> tcpClients = new List<TcpClient>();
 
+        private bool searching = true;
+
+        #region Delegates
+        public delegate void ConnectionEventHandler();
+        public event ConnectionEventHandler OnConnected;
+
+        public delegate void MessageErrorEventHandler(string exeption);
+        public event MessageErrorEventHandler OnSendError;
+        #endregion
+
         void Start()
         {
             udpClient = new UdpClient();
             udpClient.EnableBroadcast = true;
 
-            SendDiscoveryMessage();
+            StartCoroutine(Searching());
             udpClient.BeginReceive(ReceiveCallback, null);
+        }
+
+        IEnumerator Searching()
+        {
+            while(searching)
+            {
+                SendDiscoveryMessage();
+                yield return new WaitForSeconds(0.5f);
+
+            }
         }
 
         private void SendDiscoveryMessage()
@@ -50,7 +71,7 @@ namespace Saaskun
                 discoveredEndpoints.Add(endPoint);
                 Debug.Log("Nuevo servidor descubierto: " + endPoint.Address.ToString());
 
-                // Intenta establecer una conexión TCP
+                searching = false;
                 ConnectTCP(endPoint.Address);
             }
 
@@ -65,6 +86,7 @@ namespace Saaskun
                 tcpClient.Connect(serverIP, tcpPort);
                 tcpClients.Add(tcpClient);
                 Debug.Log("Conexión TCP establecida con " + serverIP.ToString());
+                OnConnected?.Invoke();
             }
             catch (Exception e)
             {
@@ -89,6 +111,7 @@ namespace Saaskun
                 catch (Exception e)
                 {
                     Debug.LogError("Error al enviar mensaje TCP: " + e.Message);
+                    OnSendError?.Invoke(e.Message);
                 }
             }
         }
