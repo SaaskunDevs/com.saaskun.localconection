@@ -2,63 +2,50 @@ using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 
 public class TCPReceiver : MonoBehaviour
 {
-    public int discoveryPort = 5556;
-    public string discoveryResponse = "UnityServerFound";
+    public int listenPort = 5556; // Puerto en el que escuchará
+    private TcpListener tcpListener;
+    private TcpClient connectedClient;
 
-    private UdpClient udpClient;
     public MessageAction[] actions;
+
     void Start()
     {
-        udpClient = new UdpClient(discoveryPort);
-        udpClient.BeginReceive(ReceiveCallback, null);
+        tcpListener = new TcpListener(IPAddress.Any, listenPort);
+        tcpListener.Start();
+        tcpListener.BeginAcceptTcpClient(new AsyncCallback(OnClientConnect), null);
     }
 
-    private void ReceiveCallback(IAsyncResult ar)
+    private void OnClientConnect(IAsyncResult ar)
     {
         try
         {
-            IPEndPoint endPoint = new IPEndPoint(IPAddress.Any, 0);
-            byte[] receivedBytes = udpClient.EndReceive(ar, ref endPoint);
-            string receivedMessage = Encoding.UTF8.GetString(receivedBytes);
+            connectedClient = tcpListener.EndAcceptTcpClient(ar);
+            Debug.Log("Cliente conectado.");
 
-            string senderIP = endPoint.Address.ToString();
-            Debug.Log("Mensaje recibido de: " + senderIP + " Mensaje: " + receivedMessage);
+            NetworkStream stream = connectedClient.GetStream();
+            byte[] buffer = new byte[connectedClient.ReceiveBufferSize];
+            int bytesRead = stream.Read(buffer, 0, buffer.Length);
 
-            string[] split = receivedMessage.Split("|");
-            ActionData(split[0], split[1]);
-
-
-            if (receivedMessage == "UnityDiscovery")
+            if (bytesRead > 0)
             {
-                SendResponse(endPoint);
+                string receivedMessage = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                Debug.Log("Mensaje recibido: " + receivedMessage);
+
+                string[] split = receivedMessage.Split("|");
+                ActionData(split[0], split[1]);
+
+                // Continúa escuchando más clientes
+                tcpListener.BeginAcceptTcpClient(new AsyncCallback(OnClientConnect), null);
             }
-
-            // Aquí puedes añadir lógica para manejar otros mensajes
         }
         catch (Exception e)
         {
-            Debug.LogError("Error al recibir mensaje: " + e.Message);
-        }
-
-        udpClient.BeginReceive(ReceiveCallback, null);
-    }
-
-    private void SendResponse(IPEndPoint endPoint)
-    {
-        try
-        {
-            byte[] data = Encoding.UTF8.GetBytes(discoveryResponse);
-            udpClient.Send(data, data.Length, endPoint);
-        }
-        catch (Exception e)
-        {
-            Debug.LogError("Error al enviar respuesta: " + e.Message);
+            Debug.LogError("Error en conexión TCP: " + e.Message);
         }
     }
 
@@ -75,8 +62,10 @@ public class TCPReceiver : MonoBehaviour
 
     private void OnDestroy()
     {
-        if (udpClient != null)
-            udpClient.Close();
+        if (tcpListener != null)
+            tcpListener.Stop();
+        if (connectedClient != null)
+            connectedClient.Close();
     }
 
     [System.Serializable]
