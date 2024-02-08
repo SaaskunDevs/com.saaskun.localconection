@@ -1,5 +1,6 @@
 >[!NOTE]
->Para mandar datos se tiene que mandar un codigo y luego el dato. Para dividir se tiene que usar el simbolo |
+>Para mandar datos se tiene que mandar un codigo y luego el dato. Para dividir se tiene que usar el simbolo "|"
+
 >Ejemplo: PositionX|12.215
 
 >[!IMPORTANT]
