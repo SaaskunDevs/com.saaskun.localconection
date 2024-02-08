@@ -2,74 +2,104 @@ using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class TCPSender : MonoBehaviour
 {
-    public string serverIP; // IP del servidor
-    public int serverPort = 5556; // Puerto del servidor
+    public int discoveryPort = 5556;
+    public int tcpPort = 5557; // Asegúrate de que este puerto sea el mismo que el servidor TCP está escuchando
+    public string discoveryMessage = "UnityDiscovery";
 
-    private TcpClient tcpClient;
+    private UdpClient udpClient;
+    private List<IPEndPoint> discoveredEndpoints = new List<IPEndPoint>();
+    private List<TcpClient> tcpClients = new List<TcpClient>();
 
     void Start()
     {
-        string localIP = GetLocalIPAddress();
-        Debug.Log("La dirección IP local del sender es: " + localIP);
+        udpClient = new UdpClient();
+        udpClient.EnableBroadcast = true;
 
+        SendDiscoveryMessage();
+        udpClient.BeginReceive(ReceiveCallback, null);
+    }
+
+    private void SendDiscoveryMessage()
+    {
         try
         {
-            // Establecer conexión TCP
-            tcpClient = new TcpClient(serverIP, serverPort);
-            Debug.Log("Conexión TCP establecida con el servidor");
+            IPEndPoint endPoint = new IPEndPoint(IPAddress.Broadcast, discoveryPort);
+            byte[] data = Encoding.UTF8.GetBytes(discoveryMessage);
+            udpClient.Send(data, data.Length, endPoint);
         }
         catch (Exception e)
         {
-            Debug.LogError("Error al conectar con el servidor: " + e.Message);
+            Debug.LogError("Error al enviar mensaje de descubrimiento: " + e.Message);
         }
     }
 
-    public void SendMessageToServer(string message)
+    private void ReceiveCallback(IAsyncResult ar)
     {
-        if (tcpClient == null)
+        IPEndPoint endPoint = new IPEndPoint(IPAddress.Any, 0);
+        byte[] receivedBytes = udpClient.EndReceive(ar, ref endPoint);
+
+        if (!discoveredEndpoints.Contains(endPoint))
         {
-            Debug.LogError("Cliente TCP no está conectado al servidor");
-            return;
+            discoveredEndpoints.Add(endPoint);
+            Debug.Log("Nuevo servidor descubierto: " + endPoint.Address.ToString());
+
+            // Intenta establecer una conexión TCP
+            ConnectTCP(endPoint.Address);
         }
 
+        udpClient.BeginReceive(ReceiveCallback, null);
+    }
+
+    private void ConnectTCP(IPAddress serverIP)
+    {
         try
         {
-            NetworkStream stream = tcpClient.GetStream();
-            if (stream.CanWrite)
-            {
-                byte[] data = Encoding.UTF8.GetBytes(message);
-                stream.Write(data, 0, data.Length);
-                Debug.Log("Mensaje enviado al servidor: " + message);
-            }
+            TcpClient tcpClient = new TcpClient();
+            tcpClient.Connect(serverIP, tcpPort);
+            tcpClients.Add(tcpClient);
+            Debug.Log("Conexión TCP establecida con " + serverIP.ToString());
         }
         catch (Exception e)
         {
-            Debug.LogError("Error al enviar mensaje al servidor: " + e.Message);
+            Debug.LogError("Error al conectar con servidor TCP: " + e.Message);
         }
     }
 
-    private string GetLocalIPAddress()
+    public void SendMessageToServers(string message)
     {
-        var host = Dns.GetHostEntry(Dns.GetHostName());
-        foreach (var ip in host.AddressList)
+        byte[] data = Encoding.UTF8.GetBytes(message);
+        foreach (TcpClient tcpClient in tcpClients)
         {
-            if (ip.AddressFamily == AddressFamily.InterNetwork)
+            try
             {
-                return ip.ToString();
+                NetworkStream stream = tcpClient.GetStream();
+                if (stream.CanWrite)
+                {
+                    stream.Write(data, 0, data.Length);
+                    Debug.Log("Mensaje TCP enviado a " + tcpClient.Client.RemoteEndPoint.ToString());
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError("Error al enviar mensaje TCP: " + e.Message);
             }
         }
-        throw new System.Exception("No network adapters with an IPv4 address in the system!");
     }
 
     private void OnDestroy()
     {
-        if (tcpClient != null)
+        if (udpClient != null)
+            udpClient.Close();
+
+        foreach (TcpClient tcpClient in tcpClients)
         {
-            tcpClient.Close();
+            if (tcpClient != null)
+                tcpClient.Close();
         }
     }
 }

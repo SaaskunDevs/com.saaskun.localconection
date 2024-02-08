@@ -7,17 +7,48 @@ using UnityEngine.Events;
 
 public class TCPReceiver : MonoBehaviour
 {
-    public int listenPort = 5556; // Puerto en el que escuchará
-    private TcpListener tcpListener;
+    public int discoveryPort = 5555; // Puerto para descubrimiento UDP
+    public int listenPort = 5556; // Puerto para comunicación TCP
+
+    private UdpClient udpClient; // Cliente UDP para descubrimiento
+    private TcpListener tcpListener; // Listener TCP para comunicación de datos
     private TcpClient connectedClient;
 
     public MessageAction[] actions;
 
     void Start()
     {
+        // Iniciar listener UDP para descubrimiento
+        udpClient = new UdpClient(discoveryPort);
+        udpClient.BeginReceive(OnUdpReceive, null);
+
+        // Iniciar listener TCP para comunicación de datos
         tcpListener = new TcpListener(IPAddress.Any, listenPort);
         tcpListener.Start();
         tcpListener.BeginAcceptTcpClient(new AsyncCallback(OnClientConnect), null);
+    }
+
+    private void OnUdpReceive(IAsyncResult ar)
+    {
+        IPEndPoint endPoint = new IPEndPoint(IPAddress.Any, discoveryPort);
+        byte[] receivedBytes = udpClient.EndReceive(ar, ref endPoint);
+
+        string receivedMessage = Encoding.UTF8.GetString(receivedBytes);
+        Debug.Log("Mensaje UDP recibido: " + receivedMessage);
+
+        if (receivedMessage == "UnityDiscovery")
+        {
+            SendUdpResponse(endPoint);
+        }
+
+        udpClient.BeginReceive(OnUdpReceive, null);
+    }
+
+    private void SendUdpResponse(IPEndPoint endPoint)
+    {
+        string response = "TCP:" + listenPort; // Respuesta con el puerto TCP
+        byte[] data = Encoding.UTF8.GetBytes(response);
+        udpClient.Send(data, data.Length, endPoint);
     }
 
     private void OnClientConnect(IAsyncResult ar)
@@ -62,6 +93,8 @@ public class TCPReceiver : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (udpClient != null)
+            udpClient.Close();
         if (tcpListener != null)
             tcpListener.Stop();
         if (connectedClient != null)
