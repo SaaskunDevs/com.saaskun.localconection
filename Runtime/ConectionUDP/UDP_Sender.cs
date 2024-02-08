@@ -3,27 +3,30 @@ using System.Net.Sockets;
 using System.Text;
 using UnityEngine;
 
-public class UDP_Sender : MonoBehaviour
+namespace Saaskun
 {
-    UdpClient udpClient;
-
-    private void Start()
+    public class UDP_Sender : MonoBehaviour
     {
-        udpClient = new UdpClient();
-        udpClient.EnableBroadcast = true;  // Habilitar el envío de mensajes de difusión
-    }
+        UdpClient udpClient;
 
-    public void SendData(string code, string message, int port)
-    {
-        // Puedes enviar mensajes a la dirección de difusión (255.255.255.255) en el puerto deseado
-        IPEndPoint remoteEndPoint = new IPEndPoint(IPAddress.Broadcast, port);
+        private void Start()
+        {
+            udpClient = new UdpClient();
+            udpClient.EnableBroadcast = true;  // Habilitar el envío de mensajes de difusión
+        }
 
-        byte[] data = Encoding.UTF8.GetBytes(code + "|" + message+"|");
-        udpClient.Send(data, data.Length, remoteEndPoint);
-    }
+        public void SendData(string code, string message, int port)
+        {
+            // Puedes enviar mensajes a la dirección de difusión (255.255.255.255) en el puerto deseado
+            IPEndPoint remoteEndPoint = new IPEndPoint(IPAddress.Broadcast, port);
 
-    private void OnDisable()
-    {
-        udpClient.Close();
+            byte[] data = Encoding.UTF8.GetBytes(code + "|" + message + "|");
+            udpClient.Send(data, data.Length, remoteEndPoint);
+        }
+
+        private void OnDisable()
+        {
+            udpClient.Close();
+        }
     }
 }
