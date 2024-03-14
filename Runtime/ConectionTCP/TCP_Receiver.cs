@@ -90,7 +90,7 @@ namespace Saaskun
                     string[] split = receivedMessage.Split('|');
                     if (split.Length >= 2)
                     {
-                        ActionData(split[0], split[1]);
+                        CheckMessageData(split[0], split[1]);
                     }
                 }
             }
@@ -104,6 +104,15 @@ namespace Saaskun
                 tcpClient.Close();
             }
         }
+
+        void CheckMessageData(string code, string message)
+{
+    UnityMainThreadDispatcher.Instance().Enqueue(() =>
+    {
+        ActionData(code, message);
+    });
+
+}
 
         void ActionData(string code, string message)
         {
