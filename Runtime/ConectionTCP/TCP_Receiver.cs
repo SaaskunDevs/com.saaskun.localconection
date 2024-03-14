@@ -2,6 +2,7 @@ using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -10,10 +11,10 @@ namespace Saaskun
     public class TCPReceiver : MonoBehaviour
     {
         public int discoveryPort = 5555; // Puerto para descubrimiento UDP
-        public int listenPort = 5556; // Puerto para comunicaci髇 TCP
+        public int listenPort = 5556; // Puerto para comunicaci贸n TCP
 
         private UdpClient udpClient; // Cliente UDP para descubrimiento
-        private TcpListener tcpListener; // Listener TCP para comunicaci髇 de datos
+        private TcpListener tcpListener; // Listener TCP para comunicaci贸n de datos
         private TcpClient connectedClient;
 
         public MessageAction[] actions;
@@ -24,10 +25,10 @@ namespace Saaskun
             udpClient = new UdpClient(discoveryPort);
             udpClient.BeginReceive(OnUdpReceive, null);
 
-            // Iniciar listener TCP para comunicaci髇 de datos
+            // Iniciar listener TCP para comunicaci贸n de datos
             tcpListener = new TcpListener(IPAddress.Any, listenPort);
             tcpListener.Start();
-            tcpListener.BeginAcceptTcpClient(new AsyncCallback(OnClientConnect), null);
+            tcpListener.BeginAcceptTcpClient(new AsyncCallback(OnDataReceived), null);
         }
 
         private void OnUdpReceive(IAsyncResult ar)
@@ -36,7 +37,7 @@ namespace Saaskun
             byte[] receivedBytes = udpClient.EndReceive(ar, ref endPoint);
 
             string receivedMessage = Encoding.UTF8.GetString(receivedBytes);
-            Debug.Log("Mensaje UDP recibido: " + receivedMessage);
+            Debug.Log("Mensaje UDP recibido: " + receivedMessage + " ip: " + endPoint.Address);
 
             if (receivedMessage == "UnityDiscovery")
             {
@@ -53,32 +54,54 @@ namespace Saaskun
             udpClient.Send(data, data.Length, endPoint);
         }
 
-        private void OnClientConnect(IAsyncResult ar)
+        private void OnDataReceived(IAsyncResult ar)
         {
             try
             {
-                connectedClient = tcpListener.EndAcceptTcpClient(ar);
-                Debug.Log("Cliente conectado.");
+                TcpClient client = tcpListener.EndAcceptTcpClient(ar);
 
-                NetworkStream stream = connectedClient.GetStream();
-                byte[] buffer = new byte[connectedClient.ReceiveBufferSize];
-                int bytesRead = stream.Read(buffer, 0, buffer.Length);
+                // Contin煤a escuchando m谩s clientes
+                tcpListener.BeginAcceptTcpClient(new AsyncCallback(OnDataReceived), null);
 
-                if (bytesRead > 0)
+                // Maneja la comunicaci贸n con el cliente en un hilo separado
+                ThreadPool.QueueUserWorkItem(new WaitCallback(HandleClientComm), client);
+            }
+            catch (Exception e)
+            {
+                Debug.LogError("Error en conexi贸n TCP: " + e.Message);
+            }
+        }
+
+        private void HandleClientComm(object client)
+        {
+            TcpClient tcpClient = (TcpClient)client;
+            NetworkStream stream = tcpClient.GetStream();
+
+            byte[] buffer = new byte[tcpClient.ReceiveBufferSize];
+            int bytesRead; 
+
+            try
+            {
+                while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) != 0)
                 {
                     string receivedMessage = Encoding.UTF8.GetString(buffer, 0, bytesRead);
                     Debug.Log("Mensaje recibido: " + receivedMessage);
 
-                    string[] split = receivedMessage.Split("|");
-                    ActionData(split[0], split[1]);
-
-                    // Contin鷄 escuchando m醩 clientes
-                    tcpListener.BeginAcceptTcpClient(new AsyncCallback(OnClientConnect), null);
+                    string[] split = receivedMessage.Split('|');
+                    if (split.Length >= 2)
+                    {
+                        ActionData(split[0], split[1]);
+                    }
                 }
             }
             catch (Exception e)
             {
-                Debug.LogError("Error en conexi髇 TCP: " + e.Message);
+                Debug.LogError("Error en cliente TCP: " + e.Message);
+                // Man茅jalo como creas conveniente
+            }
+            finally
+            {
+                tcpClient.Close();
             }
         }
 
