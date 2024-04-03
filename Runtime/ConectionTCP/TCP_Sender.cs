@@ -26,6 +26,11 @@ namespace Saaskun
 
         public delegate void MessageErrorEventHandler(string exeption);
         public event MessageErrorEventHandler OnSendError;
+
+        private const float heartbeatInterval = 10.0f; // Intervalo de latido en segundos
+        private Coroutine heartbeatCoroutine;
+        private bool rect = false;
+
         #endregion
 
         void Start()
@@ -35,6 +40,16 @@ namespace Saaskun
 
             StartCoroutine(Searching());
             udpClient.BeginReceive(ReceiveCallback, null);
+
+            heartbeatCoroutine = StartCoroutine(SendHeartbeats());
+        }
+
+        void Update()
+        {
+            if (Input.GetKeyDown(KeyCode.S))
+            {
+                Reconecting();
+            }
         }
 
         IEnumerator Searching()
@@ -85,7 +100,7 @@ namespace Saaskun
                 TcpClient tcpClient = new TcpClient();
                 tcpClient.Connect(serverIP, tcpPort);
                 tcpClients.Add(tcpClient);
-                Debug.Log("Conexi�n TCP establecida con " + serverIP.ToString());
+                Debug.Log("Conexión TCP establecida con " + serverIP.ToString());
                 OnConnected?.Invoke();
             }
             catch (Exception e)
@@ -114,6 +129,57 @@ namespace Saaskun
                     OnSendError?.Invoke(e.Message);
                 }
             }
+        }
+        void Reconecting()
+        {
+            if (!rect)
+                return;
+            
+            discoveredEndpoints.Clear(); // Limpiar la lista de endpoints descubiertos
+            searching = true; // Reanudar la búsqueda
+
+            StartCoroutine(Searching()); // Comenzar la búsqueda nuevamente
+            udpClient.BeginReceive(ReceiveCallback, null);
+            StartCoroutine(SendHeartbeats());
+            rect = false;
+        }
+        private IEnumerator SendHeartbeats()
+        {
+            while (true)
+            {
+                yield return new WaitForSeconds(heartbeatInterval);
+                
+                // Envía un latido a todos los servidores conectados
+                foreach (TcpClient tcpClient in tcpClients)
+                {
+                    try
+                    {
+                        NetworkStream stream = tcpClient.GetStream();
+                        if (stream.CanWrite)
+                        {
+                            byte[] heartbeatData = Encoding.UTF8.GetBytes("Heartbeat");
+                            stream.Write(heartbeatData, 0, heartbeatData.Length);
+                            Debug.Log("Latido TCP enviado a " + tcpClient.Client.RemoteEndPoint.ToString());
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.LogError("Error al enviar latido TCP: " + e.Message);
+                        HandleConnectionLost(tcpClient);
+                    }
+                }
+            }
+        }
+
+        private void HandleConnectionLost(TcpClient tcpClient)
+        {
+            tcpClient.Close();
+            tcpClients.Remove(tcpClient);
+            rect=true;
+            Reconecting();
+
+            Debug.LogError("La conexión con el servidor " + tcpClient.Client.RemoteEndPoint.ToString() + " se ha perdido.");
+            
         }
 
         private void OnDestroy()
