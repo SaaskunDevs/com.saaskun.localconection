@@ -12,13 +12,22 @@ namespace Saaskun
         private void Start()
         {
             udpClient = new UdpClient();
-            udpClient.EnableBroadcast = true;  // Habilitar el envío de mensajes de difusión
+            udpClient.EnableBroadcast = true;  // Habilitar el envÃ­o de mensajes de difusiÃ³n
         }
 
         public void SendData(string code, string message, int port)
         {
-            // Puedes enviar mensajes a la dirección de difusión (255.255.255.255) en el puerto deseado
+            // Puedes enviar mensajes a la direcciÃ³n de difusiÃ³n (255.255.255.255) en el puerto deseado
             IPEndPoint remoteEndPoint = new IPEndPoint(IPAddress.Broadcast, port);
+
+            byte[] data = Encoding.UTF8.GetBytes(code + "|" + message + "|");
+            udpClient.Send(data, data.Length, remoteEndPoint);
+        }
+
+        public void SendDataCustomIP(string code, string message, string ip, int port)
+        {
+            IPAddress ipAddress = IPAddress.Parse(ip);
+            IPEndPoint remoteEndPoint = new IPEndPoint(ipAddress, port);
 
             byte[] data = Encoding.UTF8.GetBytes(code + "|" + message + "|");
             udpClient.Send(data, data.Length, remoteEndPoint);
