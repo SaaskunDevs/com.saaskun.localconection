@@ -58,9 +58,11 @@ namespace Saaskun
 
         private void OnDisable()
         {
-            t.Abort();
+            if(t != null)
+                t.Abort();
             isRunning = false;
-            udpClient.Close();
+            if(udpClient != null)
+                udpClient.Close();
         }
 
         [System.Serializable]
