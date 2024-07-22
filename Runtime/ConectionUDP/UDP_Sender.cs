@@ -35,7 +35,8 @@ namespace Saaskun
 
         private void OnDisable()
         {
-            udpClient.Close();
+            if(udpClient != null)
+                udpClient.Close();
         }
     }
 }
