@@ -9,60 +9,101 @@ namespace Saaskun
 {
     public class UDP_Receiver : MonoBehaviour
     {
-        UdpClient udpClient;
+        private UdpClient udpClient;
         private bool isRunning = true;
-        Thread t;
+        private Thread receiveThread;
         public int port = 8080;
 
         public MessageAction[] actions;
 
+        private ManualResetEvent quitEvent = new ManualResetEvent(false);
+
         private void Start()
         {
-            udpClient = new UdpClient(port);
-            Debug.Log("Servidor UDP iniciado en el puerto " + port);
-            t = new Thread(new ThreadStart(ServerThread));
-            t.Start();
-        }
-
-        void ServerThread()
-        {
-            while (isRunning)
+            try
             {
-                IPEndPoint remoteEndPoint = new IPEndPoint(IPAddress.Any, 0);
-                byte[] data = udpClient.Receive(ref remoteEndPoint);
-                string dataString = Encoding.UTF8.GetString(data);
-                string[] split = dataString.Split("|");
-                CheckMessageData(split[0], split[1]);
+                udpClient = new UdpClient(port);
+                Debug.Log($"Servidor UDP iniciado en el puerto {port}");
+                receiveThread = new Thread(new ThreadStart(ServerThread));
+                receiveThread.IsBackground = true;
+                receiveThread.Start();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"Error al iniciar el servidor UDP: {ex.Message}");
             }
         }
 
-        void CheckMessageData(string code, string message)
+        private void ServerThread()
+        {
+            try
+            {
+                while (isRunning)
+                {
+                    if (quitEvent.WaitOne(0))
+                        break;
+
+                    IPEndPoint remoteEndPoint = new IPEndPoint(IPAddress.Any, 0);
+                    byte[] data = udpClient.Receive(ref remoteEndPoint);
+                    string dataString = Encoding.UTF8.GetString(data);
+                    string[] split = dataString.Split('|');
+
+                    if (split.Length >= 2)
+                    {
+                        CheckMessageData(split[0], split[1]);
+                    }
+                    else
+                    {
+                        Debug.LogWarning("Mensaje recibido con formato incorrecto.");
+                    }
+                }
+            }
+            catch (SocketException ex)
+            {
+                if (isRunning)
+                {
+                    Debug.LogError($"Error en el servidor UDP: {ex.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"Error inesperado en el servidor UDP: {ex.Message}");
+            }
+        }
+
+        private void CheckMessageData(string code, string message)
         {
             UnityMainThreadDispatcher.Instance().Enqueue(() =>
             {
                 ActionData(code, message);
             });
-
         }
 
-        void ActionData(string code, string message)
+        private void ActionData(string code, string message)
         {
-            for (int i = 0; i < actions.Length; i++)
+            foreach (var action in actions)
             {
-                if (code == actions[i].code)
+                if (code == action.code)
                 {
-                    actions[i].action.Invoke(message);
+                    action.action.Invoke(message);
                 }
             }
         }
 
         private void OnDisable()
         {
-            if(t != null)
-                t.Abort();
             isRunning = false;
-            if(udpClient != null)
+            quitEvent.Set();
+
+            if (receiveThread != null && receiveThread.IsAlive)
+            {
+                receiveThread.Join();
+            }
+
+            if (udpClient != null)
+            {
                 udpClient.Close();
+            }
         }
 
         [System.Serializable]
