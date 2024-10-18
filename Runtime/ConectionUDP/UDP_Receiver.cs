@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using UnityEngine.Events;
+using System;
 
 namespace Saaskun
 {
@@ -65,6 +66,10 @@ namespace Saaskun
                     Debug.LogError($"Error en el servidor UDP: {ex.Message}");
                 }
             }
+            catch (ObjectDisposedException)
+            {
+                // El UdpClient fue cerrado, lo cual es esperado al deshabilitar
+            }
             catch (Exception ex)
             {
                 Debug.LogError($"Error inesperado en el servidor UDP: {ex.Message}");
@@ -95,14 +100,20 @@ namespace Saaskun
             isRunning = false;
             quitEvent.Set();
 
-            if (receiveThread != null && receiveThread.IsAlive)
-            {
-                receiveThread.Join();
-            }
-
             if (udpClient != null)
             {
-                udpClient.Close();
+                udpClient.Close(); // Cierra el UdpClient primero para desbloquear Receive
+            }
+
+            if (receiveThread != null && receiveThread.IsAlive)
+            {
+                // Intenta unir el hilo con un tiempo de espera para evitar congelamientos
+                if (!receiveThread.Join(2000)) // Espera hasta 2 segundos
+                {
+                    Debug.LogWarning("El hilo de recepción no terminó en el tiempo esperado.");
+                    // Opcional: Puedes abortar el hilo si es necesario, aunque no es recomendado
+                    // receiveThread.Abort();
+                }
             }
         }
 
