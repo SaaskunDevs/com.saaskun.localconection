@@ -11,5 +11,9 @@
   },
   "dependencies": {
     "com.saaskunstudios.threaddispatcher": "1.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SaaskunDevs/com.saaskunstudios.localconection.git"
   }
 }
